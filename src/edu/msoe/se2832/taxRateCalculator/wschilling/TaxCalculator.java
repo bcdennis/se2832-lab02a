@@ -138,34 +138,60 @@ public class TaxCalculator implements TaxCalculatorInterface {
 		switch (this.filingStatus) {
 		case SINGLE:
 			baseStandardDeduction = 5450;
+			// If the filer is older than 65, the standard deduction increases
+			// as
+			// well.
+			if (age >= 65) {
+				baseStandardDeduction += 1050;
+			}
+
 			break;
 		case MARRIED_FILING_JOINTLY:
 			baseStandardDeduction = 10900;
-			// If the spouse if greater than or equal to 65, add this amount as
-			// an extra
-			// deduction.
-			if (this.spouseAge >= 65) {
+			// If the filer is older than 65, the standard deduction increases
+			// as
+			// well.
+			if ((age >= 65) && (this.spouseAge >= 65)) {
+				baseStandardDeduction += 2100;
+			} else if ((age < 65) && (this.spouseAge >= 65)) {
 				baseStandardDeduction += 1050;
+			} else if ((age >= 65) && (this.spouseAge < 65)) {
+				baseStandardDeduction += 1050;
+			} else {
+				// Add nothing extra.
 			}
 			break;
 		case QUALIFYING_WIDOWER:
 			baseStandardDeduction = 10900;
+			// If the filer is older than 65, the standard deduction increases
+			// as
+			// well.
+			if (age >= 65) {
+				baseStandardDeduction += 1050;
+			}
 			break;
 		case MARRIED_FILING_SEPARATELY:
 			baseStandardDeduction = 5450;
+			// If the filer is older than 65, the standard deduction increases
+			// as
+			// well.
+			if (age >= 65) {
+				baseStandardDeduction += 1050;
+			}
 			break;
 		case HEAD_OF_HOUSEHOLD:
 			baseStandardDeduction = 8000;
+			// If the filer is older than 65, the standard deduction increases
+			// as
+			// well.
+			if (age >= 65) {
+				baseStandardDeduction += 1050;
+			}
 			break;
 		default:
 			break;
 		}
 
-		// If the filer is older than 65, the standard deduction increases as
-		// well.
-		if (age >= 65) {
-			baseStandardDeduction += 1050;
-		}
 		return baseStandardDeduction;
 	}
 
@@ -175,38 +201,78 @@ public class TaxCalculator implements TaxCalculatorInterface {
 	 * @see TaxCalculatorInterface#isReturnRequired()
 	 */
 	public boolean isReturnRequired() {
-		double under65Threshold[] = { 8950, 11500, 17900, 3500, 14400 };
-		double over65Threshold[] = { 10300, 12850, 20000, 3500, 15450 };
+
 		double currentThreshold;
 
-		if (this.filingStatus < 0) {
-			// An error has occurred.
-		} else {
+		if (age < 65) {
+			switch (this.filingStatus) {
 
-			if (age < 65) {
-				currentThreshold = under65Threshold[this.filingStatus];
-			} else {
-				currentThreshold = over65Threshold[this.filingStatus];
+			case SINGLE:
+				currentThreshold = 8950;
+				break;
+
+			case HEAD_OF_HOUSEHOLD:
+				currentThreshold = 11500;
+				break;
+
+			case MARRIED_FILING_JOINTLY:
+				currentThreshold = 17900;
+				break;
+
+			case MARRIED_FILING_SEPARATELY:
+				currentThreshold = 3500;
+				break;
+
+			case QUALIFYING_WIDOWER:
+				currentThreshold = 14400;
+				break;
+			default:
+				currentThreshold = Double.MAX_VALUE;
 			}
-			// Adjust for married filing jointly exceptions. Essentially, the
-			// rate
-			// will vary based on whether a given spouse is age 65 or older. */
-			if (this.filingStatus == TaxCalculatorInterface.MARRIED_FILING_JOINTLY) {
-				if ((age >= 65) && (spouseAge >= 65)) {
-					currentThreshold = 20000;
-				} else if (((age < 65) && (spouseAge >= 65))
-						|| ((age >= 65) && (spouseAge < 65))) {
-					currentThreshold = 18950;
-				} else {
-					currentThreshold = 17900;
-				}
-			}
-			if (this.grossIncome >= currentThreshold) {
-				return true;
+
+		} else {
+			switch (this.filingStatus) {
+
+			case SINGLE:
+				currentThreshold = 10300;
+				break;
+
+			case HEAD_OF_HOUSEHOLD:
+				currentThreshold = 12850;
+				break;
+
+			case MARRIED_FILING_JOINTLY:
+				currentThreshold = 20000;
+				break;
+
+			case MARRIED_FILING_SEPARATELY:
+				currentThreshold = 3500;
+				break;
+
+			case QUALIFYING_WIDOWER:
+				currentThreshold = 15450;
+				break;
+			default:
+				currentThreshold = Double.MAX_VALUE;
 			}
 		}
+		// Adjust for married filing jointly exceptions. */
+		if (this.filingStatus == TaxCalculatorInterface.MARRIED_FILING_JOINTLY) {
+			if ((age >= 65) && (spouseAge >= 65)) {
+				currentThreshold = 20000;
+			} else if (((age < 65) && (spouseAge >= 65))
+					|| ((age >= 65) && (spouseAge < 65))) {
+				currentThreshold = 18950;
+			} else {
+				currentThreshold = 17900;
+			}
+		}
+		if (this.grossIncome < currentThreshold) {
+			return false;
+		} else {
 
-		return false;
+			return true;
+		}
 	}
 
 	/*
@@ -253,8 +319,16 @@ public class TaxCalculator implements TaxCalculatorInterface {
 	public double getTaxableIncome() {
 		double retVal;
 		retVal = this.grossIncome - this.getStandardDeduction();
-		if (retVal <= 0.0) {
+
+		if (this.grossIncome - this.getStandardDeduction() > 0) {
+			retVal = this.grossIncome - this.getStandardDeduction();
+		} else if (this.grossIncome - this.getStandardDeduction() < 0) {
 			retVal = 0.0;
+		} else if (this.grossIncome - this.getStandardDeduction() == 0) {
+			retVal = 0.0;
+		} else {
+			// A really strange thing has happened. I do not know what to do.
+			retVal = Double.NEGATIVE_INFINITY;
 		}
 		return retVal;
 	}
@@ -267,6 +341,16 @@ public class TaxCalculator implements TaxCalculatorInterface {
 	public void setGrossIncome(double grossIncome) {
 		if (grossIncome < 0) {
 			// Do nothing.
+
+		} else if (grossIncome == 0.0) // NOTE: It is a very bad idea to check
+										// for exact equality when using
+										// floating point numbers. However, this
+										// is being done to aid in the
+										// understanding of the code coverage
+										// tool. DO NOT REPEAT THIS IN MSOE CODE
+										// FOR OTHER CLASSES.
+		{
+			this.grossIncome = 0.0;
 		} else {
 			this.grossIncome = grossIncome;
 		}
@@ -278,33 +362,46 @@ public class TaxCalculator implements TaxCalculatorInterface {
 	 * @see TaxCalculatorInterface#getTaxDue()
 	 */
 	public double getTaxDue() {
-		double taxTable[] = { .1, .15, .25, .28, .33, .35, 0, 8025, 32550,
-				78850, 164550, 357700, 0, 11450, 43650, 112650, 182400, 357700,
-				0, 16050, 65100, 131450, 200300, 357700, 0, 8025, 32550, 65725,
-				100150, 178850, 0, 16050, 65100, 131450, 200300, 357700 };
-		int startingOffset = 6 * (1 + this.filingStatus);
+		double taxRate[] = { .1, .15, .25, .28, .33, .35 };
+		double taxTable[] = { 0, 8025, 32550, 78850, 164550, 357700, 0, 11450,
+				43650, 112650, 182400, 357700, 0, 16050, 65100, 131450, 200300,
+				357700, 0, 8025, 32550, 65725, 100150, 178850, 0, 16050, 65100,
+				131450, 200300, 357700 };
+
+		int startingOffset;
+
+		switch (this.filingStatus) {
+		case SINGLE:
+			startingOffset = 0;
+			break;
+		case HEAD_OF_HOUSEHOLD:
+			startingOffset = 6;
+			break;
+		case MARRIED_FILING_JOINTLY:
+			startingOffset = 12;
+			break;
+		case QUALIFYING_WIDOWER:
+			startingOffset = 24;
+			break;
+		case MARRIED_FILING_SEPARATELY:
+			startingOffset = 18;
+			break;
+		default:
+			startingOffset = 0;
+		}
+
 		int index = 5;
 		double remainingTaxableSalary = this.getTaxableIncome();
 		double totalTax = 0.00;
 
-		if (this.filingStatus >= 0) {
-
-			while (index >= 0) {
-				if ((startingOffset + index >= taxTable.length)
-						|| (startingOffset + index < 0)) {
-					// An error happened. We're out of bounds.
-				} else if (remainingTaxableSalary > taxTable[startingOffset
-						+ index]) {
-					totalTax += (remainingTaxableSalary - taxTable[startingOffset
-							+ index])
-							* taxTable[index];
-					remainingTaxableSalary = taxTable[startingOffset + index];
-				}
-				index--;
+		while (index >= 0) {
+			if (remainingTaxableSalary > taxTable[startingOffset + index]) {
+				totalTax += (remainingTaxableSalary - taxTable[startingOffset
+						+ index])
+						* taxRate[index];
+				remainingTaxableSalary = taxTable[startingOffset + index];
 			}
-		} else {
-			// There is an error. Something went wrong.
-
+			index--;
 		}
 
 		return totalTax;
@@ -312,6 +409,10 @@ public class TaxCalculator implements TaxCalculatorInterface {
 
 	@Override
 	public double getNetTaxRate() {
-		return 100.0 * this.getTaxDue() / this.getGrossIncome();
+		if (this.getGrossIncome() != 0) {
+			return 100.0 * this.getTaxDue() / this.getGrossIncome();
+		} else {
+			return 0.0;
+		}
 	}
 }
